@@ -19,9 +19,4 @@ public interface TierEligibilityEngine {
      * Check if a member is eligible for a specific tier
      */
     boolean isEligibleForTier(Member member, MembershipTier tier);
-
-    /**
-     * Get the highest eligible tier for a member
-     */
-    MembershipTier getHighestEligibleTier(Member member);
 } 

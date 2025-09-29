@@ -71,23 +71,6 @@ public class TierEligibilityEngineImpl implements TierEligibilityEngine {
         return true;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public MembershipTier getHighestEligibleTier(Member member) {
-        List<MembershipTier> eligibleTiers = findEligibleTiers(member);
-        
-        if (eligibleTiers.isEmpty()) {
-            // Return the default tier (Silver)
-            return tierRepository.findByTierType(com.firstclub.membership.enums.MembershipTierType.SILVER)
-                    .orElseThrow(() -> new IllegalStateException("Silver tier not found"));
-        }
-        
-        // Return the highest level tier
-        return eligibleTiers.stream()
-                .max(Comparator.comparing(MembershipTier::getLevel))
-                .orElse(eligibleTiers.get(0));
-    }
-
     private boolean evaluateCriterion(Member member, TierEligibilityCriteria criterion) {
         OrderStatistics stats = member.getOrderStatistics();
         

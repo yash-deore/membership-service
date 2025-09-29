@@ -98,23 +98,22 @@ public class MembershipServiceImpl implements MembershipService {
         
         memberLock.writeLock().lock();
         try {
-            // Get member
+            // Load required entities sequentially within the same transactional thread to keep them managed
             Member member = memberRepository.findByUserId(request.getUserId())
                     .orElseThrow(() -> new MembershipException("Member not found"));
             
-            // Check for existing active subscription
-            if (member.hasActiveSubscription()) {
-                throw new MembershipException("Member already has an active subscription");
-            }
-            
-            // Get plan and tier
             MembershipPlan plan = planRepository.findByPlanType(request.getPlanType())
                     .orElseThrow(() -> new MembershipException("Plan not found"));
             
             MembershipTier tier = tierRepository.findByTierType(request.getTierType())
                     .orElseThrow(() -> new MembershipException("Tier not found"));
             
-            // Check tier eligibility
+            // Check for existing active subscription
+            if (member.hasActiveSubscription()) {
+                throw new MembershipException("Member already has an active subscription");
+            }
+            
+            // Check tier eligibility (depends on both member and tier)
             if (!tierEligibilityEngine.isEligibleForTier(member, tier)) {
                 throw new MembershipException("Member is not eligible for the requested tier");
             }

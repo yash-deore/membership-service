@@ -25,9 +25,4 @@ public interface MembershipPlanRepository extends JpaRepository<MembershipPlan, 
      */
     @Query("SELECT p FROM MembershipPlan p WHERE p.isAvailable = true AND p.active = true ORDER BY p.durationInMonths")
     List<MembershipPlan> findAllAvailable();
-
-    /**
-     * Check if a plan type exists
-     */
-    boolean existsByPlanType(MembershipPlanType planType);
 } 
