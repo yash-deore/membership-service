@@ -119,13 +119,13 @@ curl -X POST "http://localhost:8080/api/membership/orders/user123?orderValue=150
 ### 6. Check Tier Eligibility
 
 ```bash
-curl http://localhost:8080/api/membership/eligibility/user123
+curl http://localhost:8080/api/membership/tier/eligibility/user123
 ```
 
 ### 7. Upgrade Tier
 
 ```bash
-curl -X PUT http://localhost:8080/api/membership/upgrade \
+curl -X PUT http://localhost:8080/api/membership/subscription/upgrade \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "user123",
@@ -136,7 +136,30 @@ curl -X PUT http://localhost:8080/api/membership/upgrade \
 ### 8. Get Member Status
 
 ```bash
-curl http://localhost:8080/api/membership/status/user123
+curl http://localhost:8080/api/membership/member/status/user123
+```
+
+### 9. Get Member Benefits
+
+```bash
+curl http://localhost:8080/api/membership/benefits/user123
+```
+
+### 10. Downgrade Tier
+
+```bash
+curl -X PUT http://localhost:8080/api/membership/subscription/downgrade \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "targetTierType": "SILVER"
+  }'
+```
+
+### 11. Cancel Subscription
+
+```bash
+curl -X DELETE "http://localhost:8080/api/membership/subscription/cancel/user123?reason=No%20longer%20needed"
 ```
 
 ## 🔧 Configuration
