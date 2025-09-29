@@ -13,6 +13,8 @@ import com.firstclub.membership.service.TierEligibilityEngine;
 import com.firstclub.membership.util.MembershipMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -38,6 +42,9 @@ public class MembershipServiceImpl implements MembershipService {
     private final OrderStatisticsRepository orderStatisticsRepository;
     private final TierEligibilityEngine tierEligibilityEngine;
     private final MembershipMapper mapper;
+
+    @Qualifier("membershipTaskExecutor")
+    private final TaskExecutor taskExecutor;
     
     // Thread-safe locks for critical sections
     private final ReentrantReadWriteLock memberLock = new ReentrantReadWriteLock();
@@ -98,19 +105,40 @@ public class MembershipServiceImpl implements MembershipService {
         
         memberLock.writeLock().lock();
         try {
-            // Load required entities sequentially within the same transactional thread to keep them managed
+            // Kick off independent, read-only lookups for plan and tier on a bounded executor
+            CompletableFuture<MembershipPlan> planFuture =
+                    CompletableFuture.supplyAsync(() ->
+                            planRepository.findByPlanType(request.getPlanType())
+                                    .orElseThrow(() -> new MembershipException("Plan not found")),
+                            taskExecutor);
+
+            CompletableFuture<MembershipTier> tierFuture =
+                    CompletableFuture.supplyAsync(() ->
+                            tierRepository.findByTierTypeWithAllAssociations(request.getTierType())
+                                    .orElseThrow(() -> new MembershipException("Tier not found")),
+                            taskExecutor);
+
+            // Load member in the current thread/transaction to keep lock scope and entity manager context
             Member member = memberRepository.findByUserId(request.getUserId())
                     .orElseThrow(() -> new MembershipException("Member not found"));
-            
-            MembershipPlan plan = planRepository.findByPlanType(request.getPlanType())
-                    .orElseThrow(() -> new MembershipException("Plan not found"));
-            
-            MembershipTier tier = tierRepository.findByTierType(request.getTierType())
-                    .orElseThrow(() -> new MembershipException("Tier not found"));
             
             // Check for existing active subscription
             if (member.hasActiveSubscription()) {
                 throw new MembershipException("Member already has an active subscription");
+            }
+
+            // Wait for plan and tier lookups and unwrap any MembershipException
+            MembershipPlan plan;
+            MembershipTier tier;
+            try {
+                plan = planFuture.join();
+                tier = tierFuture.join();
+            } catch (CompletionException ce) {
+                Throwable cause = ce.getCause();
+                if (cause instanceof MembershipException) {
+                    throw (MembershipException) cause;
+                }
+                throw ce;
             }
             
             // Check tier eligibility (depends on both member and tier)
@@ -163,7 +191,14 @@ public class MembershipServiceImpl implements MembershipService {
     private SubscriptionDto changeTier(TierChangeRequest request, boolean isUpgrade) {
         memberLock.writeLock().lock();
         try {
-            // Get member with active subscription
+            // Kick off independent, read-only lookup for target tier on a bounded executor
+            CompletableFuture<MembershipTier> targetTierFuture =
+                    CompletableFuture.supplyAsync(() ->
+                            tierRepository.findByTierTypeWithAllAssociations(request.getTargetTierType())
+                                    .orElseThrow(() -> new MembershipException("Target tier not found")),
+                            taskExecutor);
+
+            // Get member with active subscription (dependent chain stays on current thread/transaction)
             Member member = memberRepository.findByUserId(request.getUserId())
                     .orElseThrow(() -> new MembershipException("Member not found"));
             
@@ -172,9 +207,17 @@ public class MembershipServiceImpl implements MembershipService {
                     .findActiveByMemberIdWithLock(member.getId())
                     .orElseThrow(() -> new MembershipException("No active subscription found"));
             
-            // Get target tier
-            MembershipTier targetTier = tierRepository.findByTierType(request.getTargetTierType())
-                    .orElseThrow(() -> new MembershipException("Target tier not found"));
+            // Wait for the target tier lookup and unwrap any MembershipException
+            MembershipTier targetTier;
+            try {
+                targetTier = targetTierFuture.join();
+            } catch (CompletionException ce) {
+                Throwable cause = ce.getCause();
+                if (cause instanceof MembershipException) {
+                    throw (MembershipException) cause;
+                }
+                throw ce;
+            }
             
             // Validate tier change
             if (isUpgrade && !targetTier.getTierType().isHigherThan(subscription.getTier().getTierType())) {
