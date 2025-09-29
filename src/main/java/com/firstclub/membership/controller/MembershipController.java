@@ -60,7 +60,7 @@ public class MembershipController {
         return ResponseEntity.ok(subscription);
     }
 
-    @PutMapping("/upgrade")
+    @PutMapping("/subscription/upgrade")
     @Operation(summary = "Upgrade membership tier", description = "Upgrade a member's tier to a higher level")
     public ResponseEntity<SubscriptionDto> upgradeTier(@Valid @RequestBody TierChangeRequest request) {
         log.info("Upgrading tier for userId: {} to: {}", request.getUserId(), request.getTargetTierType());
@@ -68,7 +68,7 @@ public class MembershipController {
         return ResponseEntity.ok(subscription);
     }
 
-    @PutMapping("/downgrade")
+    @PutMapping("/subscription/downgrade")
     @Operation(summary = "Downgrade membership tier", description = "Downgrade a member's tier to a lower level")
     public ResponseEntity<SubscriptionDto> downgradeTier(@Valid @RequestBody TierChangeRequest request) {
         log.info("Downgrading tier for userId: {} to: {}", request.getUserId(), request.getTargetTierType());
@@ -76,7 +76,7 @@ public class MembershipController {
         return ResponseEntity.ok(subscription);
     }
 
-    @DeleteMapping("/cancel/{userId}")
+    @DeleteMapping("/subscription/cancel/{userId}")
     @Operation(summary = "Cancel membership", description = "Cancel a member's active subscription")
     public ResponseEntity<Void> cancelSubscription(
             @PathVariable String userId,
@@ -86,14 +86,14 @@ public class MembershipController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/status/{userId}")
+    @GetMapping("/member/status/{userId}")
     @Operation(summary = "Get membership status", description = "Get current membership status for a member")
     public ResponseEntity<MembershipStatusDto> getMemberStatus(@PathVariable String userId) {
         MembershipStatusDto status = membershipService.getMemberStatus(userId);
         return ResponseEntity.ok(status);
     }
 
-    @GetMapping("/eligibility/{userId}")
+    @GetMapping("/tier/eligibility/{userId}")
     @Operation(summary = "Get all eligible tiers", description = "Check which tiers a member is eligible for")
     public ResponseEntity<List<MembershipTierDto>> getAllEligibleTiers(@PathVariable String userId) {
         List<MembershipTierDto> eligibleTiers = membershipService.checkTierEligibility(userId);
